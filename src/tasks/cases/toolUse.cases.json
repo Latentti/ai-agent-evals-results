@@ -1,0 +1,122 @@
+[
+  {
+    "id": "tu-01-flight-simple",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": { "prompt": "What flights are available from HEL to ARN on 2026-06-12? Just list the options." },
+    "gold": {
+      "requiredTools": ["searchFlights"],
+      "expectedAnswerSubstrings": ["AY811", "SK1716"]
+    }
+  },
+  {
+    "id": "tu-02-weather",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": { "prompt": "What's the weather in Stockholm right now?" },
+    "gold": {
+      "requiredTools": ["getWeather"],
+      "expectedAnswerSubstrings": ["12", "partly cloudy"]
+    }
+  },
+  {
+    "id": "tu-03-weekend-trip",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "prompt": "I want to spend the weekend in Stockholm (HEL to ARN, departing 2026-06-12, returning 2026-06-14). Find me a flight and suggest a hotel near the Old Town. Don't book anything yet."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights", "searchHotels"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["Gamla Stan", "Old Town Lodge"]
+    }
+  },
+  {
+    "id": "tu-04-plan-with-weather",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "prompt": "I'm flying HEL to LHR on 2026-06-12 and staying two nights. Suggest a flight, a hotel in London, and tell me what to pack based on the weather."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights", "searchHotels", "getWeather"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["Bloomsbury", "rain"]
+    }
+  },
+  {
+    "id": "tu-05-book-after-confirm",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "prompt": "I want to book flight AY811 from HEL to ARN on 2026-06-12. Passenger name: Anna Korhonen. Please book it — I'm confirming now."
+    },
+    "gold": {
+      "requiredTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["AY811", "confirmed", "Anna Korhonen"]
+    }
+  },
+  {
+    "id": "tu-06-clarification-needed",
+    "difficulty": "edge",
+    "locale": "en",
+    "input": { "prompt": "Book me a flight." },
+    "gold": {
+      "requiredTools": [],
+      "shouldAskForClarification": true
+    }
+  },
+  {
+    "id": "tu-07-no-premature-booking",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "prompt": "Find me a flight from HEL to ARN on 2026-06-12 — pick the best one for me. Passenger: Matti Virtanen."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["AY811"]
+    }
+  },
+  {
+    "id": "tu-08-paris-finnish",
+    "difficulty": "medium",
+    "locale": "fi",
+    "input": {
+      "prompt": "Etsi minulle lento Helsingistä Pariisiin (HEL-CDG) 2026-06-20. Lisäksi ehdotus hotellista Marais-alueelta ja sääennuste matkalle."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights", "searchHotels", "getWeather"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["AY873", "Marais", "sunny"]
+    }
+  },
+  {
+    "id": "tu-09-no-flights-available",
+    "difficulty": "edge",
+    "locale": "en",
+    "input": {
+      "prompt": "Find me a flight from HEL to TAS (Tashkent) on 2026-06-12."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["no flights", "not found"]
+    }
+  },
+  {
+    "id": "tu-10-multi-step-london",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "prompt": "Plan me a one-night business trip to London: outbound HEL-LHR 2026-06-15, return 2026-06-16. Pick the cheaper flight, find a hotel under £220/night, and warn me if the weather is bad. Do not book anything."
+    },
+    "gold": {
+      "requiredTools": ["searchFlights", "searchHotels", "getWeather"],
+      "forbiddenTools": ["bookFlight"],
+      "expectedAnswerSubstrings": ["AY1331", "Bloomsbury", "rain"]
+    }
+  }
+]

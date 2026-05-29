@@ -1,0 +1,92 @@
+[
+  {
+    "id": "rs-h-01-compound-discount",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "A coat is reduced by 30%, then a further 15% off the already-reduced price. After that, 8% VAT is added on the discounted price. The customer pays exactly €92.43. What was the ORIGINAL price in euros, to two decimals?"
+    },
+    "gold": { "answer": "143.84", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-02-knights-knaves-3",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "On an island where knights always tell the truth and knaves always lie, you meet three islanders A, B, and C.\nA says: 'B is a knave.'\nB says: 'A and C are the same type.'\nC says: 'A is a knight.'\nWhat is A? Answer with one word: knight or knave."
+    },
+    "gold": { "answer": "knave", "isNumeric": false }
+  },
+  {
+    "id": "rs-h-03-combinatorics",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "How many distinct arrangements of the letters in the word MOOVY are there in which the two O's are NOT adjacent to each other? Give the answer as a single integer."
+    },
+    "gold": { "answer": "36", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-04-monty-hall",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "A game show has three doors. Behind one is a prize, the other two hide goats. You pick door 1. The host, who knows where the prize is, then opens door 3 to reveal a goat, and offers you the chance to switch to door 2. What is the probability of winning the prize if you switch? Express as a simple fraction in the form a/b."
+    },
+    "gold": { "answer": "2/3", "isNumeric": false }
+  },
+  {
+    "id": "rs-h-05-inscribed-sphere",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "A cube has a volume of 343 cubic centimeters. A sphere is inscribed inside the cube so that it touches all six faces. What is the surface area of the sphere in square centimeters, rounded to two decimals? Use π = 3.14159."
+    },
+    "gold": { "answer": "153.94", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-06-look-and-say",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "What is the next number in this sequence? 1, 11, 21, 1211, 111221, ?"
+    },
+    "gold": { "answer": "312211", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-07-age-puzzle",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "question": "Anna is currently 3 times Ben's age. In 12 years, Anna will be exactly twice Ben's age. How old is Ben now (in years)?"
+    },
+    "gold": { "answer": "12", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-08-logic-puzzle",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "Three friends — Alice, Bob, and Carol — each drink a different beverage from {coffee, tea, water}. Alice does not drink coffee. Bob drinks something hot (and water is cold). Carol drinks neither coffee nor water. Who drinks coffee? Answer with one name."
+    },
+    "gold": { "answer": "Bob", "isNumeric": false }
+  },
+  {
+    "id": "rs-h-09-rate-change",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "question": "Two cars start at the same time from cities A and B, which are 240 km apart, and drive toward each other. Car A moves at a constant 60 km/h. Car B starts at 80 km/h but, after 1 hour, reduces its speed to 40 km/h. How many hours after the start do they meet? Give the answer as a number."
+    },
+    "gold": { "answer": "2", "isNumeric": true }
+  },
+  {
+    "id": "rs-h-10-calendar-leap-fi",
+    "difficulty": "hard",
+    "locale": "fi",
+    "input": {
+      "question": "Jos 31. tammikuuta 2024 oli keskiviikko, mikä viikonpäivä oli 1. maaliskuuta 2025? Huomaa: 2024 oli karkausvuosi. Anna vastaus suomeksi pienellä kirjaimella (esim. 'maanantai')."
+    },
+    "gold": { "answer": "lauantai", "isNumeric": false }
+  }
+]

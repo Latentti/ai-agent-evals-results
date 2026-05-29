@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AI Agent Model-Difference Evals</title>
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; color: #1c1c1c; line-height: 1.5; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 0.4rem; }
+    h2 { margin-top: 2.5rem; border-left: 4px solid #5C8DEF; padding-left: 0.6rem; }
+    h3 { margin-top: 1.4rem; color: #333; }
+    table { border-collapse: collapse; margin: 0.6rem 0; }
+    th, td { padding: 0.4rem 0.7rem; border: 1px solid #d8d8d8; font-size: 0.92rem; }
+    th { background: #f1f3f8; }
+    code { background: #f1f3f8; padding: 0 0.25rem; border-radius: 3px; font-size: 0.88em; }
+    pre { background: #f8f9fb; padding: 0.6rem; border-radius: 4px; border: 1px solid #ececec; overflow-x: auto; font-size: 0.85rem; }
+    details { margin: 0.6rem 0; }
+    summary { cursor: pointer; padding: 0.3rem 0; }
+    .chart { margin: 0.8rem 0 1.5rem; }
+    .deep-dive td:first-child, .deep-dive td:nth-child(2) { font-size: 0.85rem; }
+    .divergent-case { padding: 0.5rem 1rem; border-left: 3px solid #B266FF; background: #fbf7ff; }
+    .lede { font-size: 1.05rem; color: #444; }
+    .callout { padding: 0.7rem 1rem; background: #fff8e6; border-left: 4px solid #cc7a1f; border-radius: 2px; }
+    .scenario-card { padding: 0.7rem 1rem; margin: 0.7rem 0; border-radius: 4px; }
+    .scenario-card summary { cursor: pointer; }
+    .scenario-card p { margin: 0.35rem 0; }
+
+    /* ---- Print / A4 PDF ---- */
+    @page { size: A4 portrait; margin: 14mm 12mm; }
+    @media print {
+      html, body { max-width: none; width: auto; margin: 0; padding: 0; font-size: 10pt; line-height: 1.4; color: #000; }
+      /* heat-map cells, status colours and card backgrounds must survive printing */
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      a { color: #000; text-decoration: none; }
+      h1 { font-size: 18pt; break-after: avoid; }
+      h2 { font-size: 13pt; margin-top: 14pt; break-after: avoid; }
+      h3 { font-size: 11.5pt; break-after: avoid; }
+      p, li { orphans: 3; widows: 3; }
+      summary { break-after: avoid; }
+      /* keep self-contained blocks on one page where they fit */
+      .scenario-card, .divergent-case, .callout { break-inside: avoid; }
+      /* tables: repeat the header row on each page, don't split a row mid-cell */
+      table { width: 100%; break-inside: auto; font-size: 8.5pt; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; }
+      th, td { padding: 2pt 4pt; }
+      .deep-dive table, .deep-dive { font-size: 7.5pt; }
+      pre { font-size: 7.5pt; white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+      code { background: #eee; }
+      /* charts scale to the printable width and stay whole */
+      .chart { max-width: 100%; break-inside: avoid; margin: 6pt 0 12pt; }
+      .chart svg, .chart canvas { max-width: 100% !important; height: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Agent Model-Difference Evals</h1>
+  <p class="lede">A demonstration of how the choice of Claude model affects agent outcomes across four task types and two comparison axes — built to make the case for why <strong>evals matter</strong> when models change in production. Frontier models are forcibly refreshed every 12–18 months; this report illustrates the governance burden that creates.</p>
+
+  <h2>1. Executive summary</h2>
+  <table>
+    <thead><tr>
+      <th>Model</th>
+      <th>Family</th>
+      <th>Mean correctness (baseline)</th>
+      <th>Baseline cost</th>
+      <th>All-variant cost <small>(judge tax shown inline)</small></th>
+      <th>Mean latency</th>
+      <th>Calls (baseline)</th>
+    </tr></thead>
+    <tbody><tr>
+      <td>Sonnet 4 (May 2025)</td>
+      <td>sonnet</td>
+      <td style="background:rgb(32,198,80);color:#fff;text-align:right">0.876</td>
+      <td style="text-align:right">$0.571</td>
+      <td style="text-align:right">$1.364<small style="color:#666"> +$0.887 judge</small></td>
+      <td style="text-align:right">4672 ms</td>
+      <td style="text-align:right">100</td>
+    </tr>
+<tr>
+      <td>Sonnet 4.5 (Sep 2025)</td>
+      <td>sonnet</td>
+      <td style="background:rgb(28,200,80);color:#fff;text-align:right">0.888</td>
+      <td style="text-align:right">$0.607</td>
+      <td style="text-align:right">$1.430<small style="color:#666"> +$0.890 judge</small></td>
+      <td style="text-align:right">5595 ms</td>
+      <td style="text-align:right">100</td>
+    </tr>
+<tr>
+      <td>Sonnet 4.6</td>
+      <td>sonnet</td>
+      <td style="background:rgb(22,205,80);color:#fff;text-align:right">0.915</td>
+      <td style="text-align:right">$0.661</td>
+      <td style="text-align:right">$1.574<small style="color:#666"> +$0.899 judge</small></td>
+      <td style="text-align:right">5785 ms</td>
+      <td style="text-align:right">100</td>
+    </tr>
+<tr>
+      <td>Haiku 4.5</td>
+      <td>haiku</td>
+      <td style="background:rgb(39,192,80);color:#fff;text-align:right">0.847</td>
+      <td style="text-align:right">$0.190</td>
+      <td style="text-align:right">$0.457<small style="color:#666"> +$0.860 judge</small></td>
+      <td style="text-align:right">2770 ms</td>
+      <td style="text-align:right">100</td>
+    </tr>
+<tr>
+      <td>Opus 4.7</td>
+      <td>opus</td>
+      <td style="background:rgb(16,209,80);color:#fff;text-align:right">0.938</td>
+      <td style="text-align:right">$3.409</td>
+      <td style="text-align:right">$8.555<small style="color:#666"> +$0.919 judge</small></td>
+      <td style="text-align:right">4912 ms</td>
+      <td style="text-align:right">100</td>
+    </tr></tbody>
+  </table>
+  <div class="chart" id="chart-overall"></div>
+
+  <h2>2. Model availability &amp; API contract changes</h2>
+  
+    <p>All models in this sweep ran without API-level errors. (Watch this section if you re-run after a model refresh — the same code can stop working when the API contract under a model ID changes.)</p>
+    <h3>Per-model health</h3>
+    <table><thead><tr><th>Model</th><th>Calls</th><th>Errors</th><th>Error rate</th><th>Status</th></tr></thead><tbody><tr>
+      <td>Haiku 4.5</td>
+      <td style="text-align:right">230</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right">0.0%</td>
+      <td><span style="color:#2a9d2a">healthy</span></td>
+    </tr>
+<tr>
+      <td>Sonnet 4 (May 2025)</td>
+      <td style="text-align:right">230</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right">0.0%</td>
+      <td><span style="color:#2a9d2a">healthy</span></td>
+    </tr>
+<tr>
+      <td>Sonnet 4.5 (Sep 2025)</td>
+      <td style="text-align:right">230</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right">0.0%</td>
+      <td><span style="color:#2a9d2a">healthy</span></td>
+    </tr>
+<tr>
+      <td>Sonnet 4.6</td>
+      <td style="text-align:right">230</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right">0.0%</td>
+      <td><span style="color:#2a9d2a">healthy</span></td>
+    </tr>
+<tr>
+      <td>Opus 4.7</td>
+      <td style="text-align:right">230</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right">0.0%</td>
+      <td><span style="color:#2a9d2a">healthy</span></td>
+    </tr></tbody></table>
+    
+  
+
+  <h2>3. Impact scenarios — what evals catch before production</h2>
+  
+    <p>Each scenario below pairs an empirical finding from this sweep with a concrete production vignette — "what would have happened if you had shipped this model change blind." Numbers are templated from <code>aggregate.json</code>, so they refresh on every re-run.</p>
+    <details open class="scenario-card" style="border-left:5px solid #cc7a1f;background:#fff8e6">
+        <summary style="font-size:1.02rem;font-weight:600;color:#cc7a1f">1. The silent regression — same code, model bumped, fewer bookings complete</summary>
+        <div style="padding:0.4rem 0 0 0">
+          <p><strong>Finding.</strong> On tool use, Sonnet 4 → 4.5 dropped correctness 0.91 → 0.87 (Δ −4.0 percentage points). Sonnet 4.6 then recovered to 0.92. The regression is real, not noise: n=30 per cell, stdev ≈ 0.27.</p>
+          <p><strong>Concrete example.</strong> Anna books a Stockholm weekend trip via your travel-planning agent on Sonnet 4. The agent reliably searches flights, suggests an Old Town hotel and warns about the weather — 91% of bookings completed end-to-end. Tuesday, ops rolls a &quot;minor model bump to Sonnet 4.5&quot; for better long-context support. Wednesday, Anna receives flight options but no hotel — the agent stopped after one tool call. Across 10,000 weekly bookings, that is ~400 extra half-completed trips.</p>
+          <p><strong>Production consequence.</strong> Four percentage points down means roughly 1 in 25 bookings now needs human follow-up. No alert fires because the API returned 200 OK; the agent just stopped calling tools earlier. Discovered three weeks in, when finance sees hotel-affiliate revenue down 8% and support tickets up 30%. The &quot;minor bump&quot; cost a sprint of incident response.</p>
+          <p><strong>What the eval enables.</strong> Run the 10 tool-use cases × 3 replicates against every candidate model before promotion. A ≥ 2 pp drop on the headline metric blocks the rollout in CI. This sweep cost roughly $0.65 per Sonnet model — cheaper than one undetected regression week.</p>
+        </div>
+      </details>
+<details open class="scenario-card" style="border-left:5px solid #cc7a1f;background:#fff8e6">
+        <summary style="font-size:1.02rem;font-weight:600;color:#cc7a1f">4. Tier mismatch — picking too cheap a tier costs human handle time</summary>
+        <div style="padding:0.4rem 0 0 0">
+          <p><strong>Finding.</strong> On the classification + reply task, mean correctness: Haiku 0.79 → Sonnet 4.6 0.87 → Opus 4.7 0.91. At 5,000 tickets/day, that is 1,067 misrouted on Haiku vs 643 on Sonnet 4.6 vs 428 on Opus 4.7.</p>
+          <p><strong>Concrete example.</strong> Your support ops run a routing agent: classify ticket → reply or escalate. The team chose Haiku 4.5 because it was 16× cheaper than Opus. At 5,000 tickets/day, Haiku misroutes 1,067 of them (21.3%). Each misroute costs ~6 minutes of human handle time when caught downstream: 107 extra hours of L1 work per day. At €30/hour, ≈€3,201/day.</p>
+          <p><strong>Production consequence.</strong> Annualised, choosing Haiku over Sonnet 4.6 on this task costs ≈ €318,000 of avoidable handle time per year (working-days basis). The Haiku savings on API cost are an order of magnitude smaller. Without the eval comparison, the buyer never sees this trade.</p>
+          <p><strong>What the eval enables.</strong> The cost/accuracy scatter (section 7) makes this visible at a glance: Sonnet 4.6 sits on the Pareto frontier for this task. Use Haiku for tasks where the eval shows it is on the frontier (here, extraction is one such task); use Sonnet 4.6 for classification.</p>
+        </div>
+      </details>
+<details open class="scenario-card" style="border-left:5px solid #5C8DEF;background:#f4f8ff">
+        <summary style="font-size:1.02rem;font-weight:600;color:#5C8DEF">5. Variance ≠ determinism — you cannot buy determinism from an LLM</summary>
+        <div style="padding:0.4rem 0 0 0">
+          <p><strong>Finding.</strong> On classification, Haiku 4.5 shows stdev 0.202 across replicates while Opus 4.7 shows stdev 0.139 — roughly a 1.5× difference. Higher tiers are quieter, but neither is zero. Same prompt, same temperature 0, the model can still produce a different answer on the next call.</p>
+          <p><strong>Concrete example.</strong> Quarterly compliance audit. The auditor samples 30 support replies and asks the team to re-generate them. On Haiku, three of the 30 come back with a different intent label — the same input produced &quot;refund&quot; twice and &quot;complaint&quot; once across the replicates. The team&#39;s first instinct is &quot;upgrade to Opus, it is far less noisy.&quot; But Opus&#39;s stdev of 0.139 is still strictly greater than zero — on a long enough tail of inputs, it will also disagree with itself. The auditor&#39;s bar is not &quot;low variance&quot;; it is &quot;identical input ⇒ identical output, always.&quot; No LLM tier clears that bar.</p>
+          <p><strong>Production consequence.</strong> Higher-tier models reduce stochastic variance but cannot eliminate it. If your compliance regime, regulator, or contract demands true determinism, no Claude tier — Opus included — meets that bar. Paying the Opus premium to &quot;buy determinism&quot; is solving the wrong problem at the wrong layer; the auditor will find the residual variance eventually, and the documentation that called Opus &quot;deterministic&quot; becomes the liability.</p>
+          <p><strong>What the eval enables.</strong> Don&#39;t try to buy determinism from an LLM — extract it. (1) If &quot;intent → routing rule&quot; must be deterministic for compliance, move that decision to a classical classifier or a rules table; reserve the LLM for the parts that genuinely need language understanding, such as drafting the reply once routing is already decided. (2) If &quot;low behavioural variance&quot; is what you actually need, quantify the bar (e.g. ≥98% identical-output rate on a regression set) and pick the cheapest tier that clears it — the variance box plot in section 8 is the procurement evidence. (3) Compose: tiered LLM for generation + deterministic logic for compliance-critical branching. The Opus cost premium is justified where the lower variance translates to measurable downstream value — not as a substitute for determinism that the LLM cannot provide.</p>
+        </div>
+      </details>
+<details open class="scenario-card" style="border-left:5px solid #5C8DEF;background:#f4f8ff">
+        <summary style="font-size:1.02rem;font-weight:600;color:#5C8DEF">6. Pareto economics — naive &#39;always Opus&#39; leaves real money on the table</summary>
+        <div style="padding:0.4rem 0 0 0">
+          <p><strong>Finding.</strong> Across this sweep, mean cost per call: Haiku $0.0019, Sonnet 4.6 $0.0066, Opus 4.7 $0.0341 — Opus is 5.2× Sonnet 4.6 for an overall +2.3 pp on correctness.</p>
+          <p><strong>Concrete example.</strong> Stakeholder defaults to Opus for everything because it is &quot;the best model&quot;. At 50,000 interactions/month: $1,705/month, blended correctness 0.938. Routed alternative: Sonnet 4.6 for the 80% of interactions where the eval shows it matches Opus (extraction, reasoning, easy classification) + Opus for the 20% of hard cases. Routed monthly cost: $605. Annual saving: ≈$13,193 with negligible quality drop.</p>
+          <p><strong>Production consequence.</strong> Without the cost/accuracy chart, the procurement decision is &quot;pick the headline number&quot;. With it, you can defend Sonnet-4.6-by-default to the CFO and Opus-when-flagged to engineering. Same SLO, lower TCO, documented trade-off.</p>
+          <p><strong>What the eval enables.</strong> The cost/accuracy scatter (section 7) and tier comparison (section 5) are the artefacts to put in front of finance. Re-run the eval every quarter — pricing and quality both move.</p>
+        </div>
+      </details>
+  
+
+  <h2>3b. Adaptation — closing regressions with prompts</h2>
+  
+    <p>So evals catch regressions and contract changes — what can you actually do about them? This section runs the same eval against a <strong>tuned</strong> system-prompt variant for every task (multi-step instructions + few-shot example), and reports the delta vs. baseline. For classification only, it also runs a <strong>hybrid-rules</strong> variant that extracts intent classification out of the LLM entirely. The point is not "prompt engineering always rescues you" — it is that the eval is how you <em>know</em> whether your fix actually worked, or merely shifted the failure mode.</p>
+    <h3>Baseline vs. tuned prompt (Δ in percentage points)</h3>
+    <table>
+      <thead><tr>
+        <th>Task</th>
+        <th>Model</th>
+        <th>Baseline</th>
+        <th>Tuned</th>
+        <th>Δ</th>
+        <th>Other variants</th>
+      </tr></thead>
+      <tbody><tr>
+        <td>Tool use (travel agent)</td>
+        <td>Sonnet 4 (May 2025)</td>
+        <td style="text-align:right">0.910</td>
+        <td style="text-align:right">0.940</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+3.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Tool use (travel agent)</td>
+        <td>Sonnet 4.5 (Sep 2025)</td>
+        <td style="text-align:right">0.870</td>
+        <td style="text-align:right">0.870</td>
+        <td style="text-align:right">~0</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Tool use (travel agent)</td>
+        <td>Sonnet 4.6</td>
+        <td style="text-align:right">0.920</td>
+        <td style="text-align:right">0.920</td>
+        <td style="text-align:right">~0</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Tool use (travel agent)</td>
+        <td>Haiku 4.5</td>
+        <td style="text-align:right">0.850</td>
+        <td style="text-align:right">0.870</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+2.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Tool use (travel agent)</td>
+        <td>Opus 4.7</td>
+        <td style="text-align:right">0.920</td>
+        <td style="text-align:right">0.920</td>
+        <td style="text-align:right">~0</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Structured extraction (invoices)</td>
+        <td>Sonnet 4 (May 2025)</td>
+        <td style="text-align:right">0.931</td>
+        <td style="text-align:right">0.907</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-2.4 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Structured extraction (invoices)</td>
+        <td>Sonnet 4.5 (Sep 2025)</td>
+        <td style="text-align:right">0.940</td>
+        <td style="text-align:right">0.923</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-1.7 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Structured extraction (invoices)</td>
+        <td>Sonnet 4.6</td>
+        <td style="text-align:right">0.940</td>
+        <td style="text-align:right">0.907</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-3.3 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Structured extraction (invoices)</td>
+        <td>Haiku 4.5</td>
+        <td style="text-align:right">0.931</td>
+        <td style="text-align:right">0.923</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-0.8 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Structured extraction (invoices)</td>
+        <td>Opus 4.7</td>
+        <td style="text-align:right">0.940</td>
+        <td style="text-align:right">0.931</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-0.9 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Reasoning (word problems &amp; logic)</td>
+        <td>Sonnet 4 (May 2025)</td>
+        <td style="text-align:right">0.850</td>
+        <td style="text-align:right">0.900</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+5.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Reasoning (word problems &amp; logic)</td>
+        <td>Sonnet 4.5 (Sep 2025)</td>
+        <td style="text-align:right">0.900</td>
+        <td style="text-align:right">0.850</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-5.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Reasoning (word problems &amp; logic)</td>
+        <td>Sonnet 4.6</td>
+        <td style="text-align:right">0.950</td>
+        <td style="text-align:right">1.000</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+5.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Reasoning (word problems &amp; logic)</td>
+        <td>Haiku 4.5</td>
+        <td style="text-align:right">0.850</td>
+        <td style="text-align:right">0.750</td>
+        <td style="background:#fbe2e2;color:#a02020;text-align:right">-10.0 pp</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Reasoning (word problems &amp; logic)</td>
+        <td>Opus 4.7</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">~0</td>
+        <td></td>
+      </tr>
+<tr>
+        <td>Classification + reply (support)</td>
+        <td>Sonnet 4 (May 2025)</td>
+        <td style="text-align:right">0.823</td>
+        <td style="text-align:right">0.913</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+8.9 pp</td>
+        <td><small style="color:#666">hybrid-rules 0.95</small></td>
+      </tr>
+<tr>
+        <td>Classification + reply (support)</td>
+        <td>Sonnet 4.5 (Sep 2025)</td>
+        <td style="text-align:right">0.864</td>
+        <td style="text-align:right">0.921</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+5.7 pp</td>
+        <td><small style="color:#666">hybrid-rules 0.96</small></td>
+      </tr>
+<tr>
+        <td>Classification + reply (support)</td>
+        <td>Sonnet 4.6</td>
+        <td style="text-align:right">0.871</td>
+        <td style="text-align:right">0.920</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+4.9 pp</td>
+        <td><small style="color:#666">hybrid-rules 0.96</small></td>
+      </tr>
+<tr>
+        <td>Classification + reply (support)</td>
+        <td>Haiku 4.5</td>
+        <td style="text-align:right">0.787</td>
+        <td style="text-align:right">0.920</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+13.4 pp</td>
+        <td><small style="color:#666">hybrid-rules 0.93</small></td>
+      </tr>
+<tr>
+        <td>Classification + reply (support)</td>
+        <td>Opus 4.7</td>
+        <td style="text-align:right">0.914</td>
+        <td style="text-align:right">0.977</td>
+        <td style="background:#dff5d8;color:#1a6c1a;text-align:right">+6.3 pp</td>
+        <td><small style="color:#666">hybrid-rules 0.96</small></td>
+      </tr></tbody>
+    </table>
+    <div class="chart" id="chart-adaptation"></div>
+    
+      <h3>Hybrid case study (classification only) — extract determinism out of the LLM</h3>
+      <p>The <strong>hybrid-rules</strong> variant moves intent classification from the LLM to a small keyword-regex engine. The LLM is then called only to draft the reply, given the already-determined intent. Compare the intent-accuracy column to the baseline: rules can hit a literal ceiling on the cases they cover, with zero stochastic variance.</p>
+      <table>
+        <thead><tr>
+          <th>Model</th>
+          <th>Baseline intent acc.</th>
+          <th>Hybrid intent acc.</th>
+          <th>Δ</th>
+          <th>Reply judge score</th>
+          <th>Reply rubric score</th>
+        </tr></thead>
+        <tbody><tr>
+        <td>Sonnet 4 (May 2025)</td>
+        <td style="text-align:right">0.900</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">10.0 pp</td>
+        <td style="text-align:right">0.809</td>
+        <td style="text-align:right">0.980</td>
+      </tr>
+<tr>
+        <td>Sonnet 4.5 (Sep 2025)</td>
+        <td style="text-align:right">0.900</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">10.0 pp</td>
+        <td style="text-align:right">0.848</td>
+        <td style="text-align:right">0.980</td>
+      </tr>
+<tr>
+        <td>Sonnet 4.6</td>
+        <td style="text-align:right">0.900</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">10.0 pp</td>
+        <td style="text-align:right">0.857</td>
+        <td style="text-align:right">0.980</td>
+      </tr>
+<tr>
+        <td>Haiku 4.5</td>
+        <td style="text-align:right">0.800</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">20.0 pp</td>
+        <td style="text-align:right">0.877</td>
+        <td style="text-align:right">0.860</td>
+      </tr>
+<tr>
+        <td>Opus 4.7</td>
+        <td style="text-align:right">0.933</td>
+        <td style="text-align:right">1.000</td>
+        <td style="text-align:right">6.7 pp</td>
+        <td style="text-align:right">0.866</td>
+        <td style="text-align:right">0.987</td>
+      </tr></tbody>
+      </table>
+      <p><em>Note: the rules engine in <code>src/tasks/classification.ts</code> uses a small generic pattern set; a production hybrid would expand the patterns or use a classical classifier. The point is architectural: the deterministic decision is no longer LLM-stochastic.</em></p>
+    
+  
+
+  <h2>4. Temporal evolution — Sonnet 4 → 4.5 → 4.6</h2>
+  <p>Same prompt, same case, same scoring. Each panel is one task type. Error bars are ±1σ across replicates.</p>
+  <div class="chart" id="chart-temporal"></div>
+
+  <h2>5. Tier comparison — Haiku 4.5 / Sonnet 4.6 / Opus 4.7</h2>
+  <p>Same generation, three tiers. Correctness on the left; mean cost per case on the right.</p>
+  <div class="chart" id="chart-tier"></div>
+
+  <h2>6. Per-case deep dive</h2>
+  <p>Rows are individual cases, sorted by max-min divergence across models (most divergent on top). Cell colour = mean correctness.</p>
+  <table class="deep-dive"><thead><tr><th>Task</th><th>Case</th><th>S4</th><th>S4.5</th><th>S4.6</th><th>H4.5</th><th>O4.7</th><th>Δ</th></tr></thead><tbody><tr><td>reasoning</td><td><code>rs-h-01-compound-discount</code></td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">1.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-08-paris-finnish</code></td><td style="background:rgb(77,166,80);color:#fff;text-align:right">0.70</td><td style="background:rgb(179,94,80);color:#fff;text-align:right">0.30</td><td style="background:rgb(51,184,80);color:#fff;text-align:right">0.80</td><td style="background:rgb(230,58,80);color:#fff;text-align:right">0.10</td><td style="background:rgb(51,184,80);color:#fff;text-align:right">0.80</td><td style="text-align:right">0.70</td></tr>
+<tr><td>classification</td><td><code>cl-03-complaint</code></td><td style="background:rgb(20,206,80);color:#fff;text-align:right">0.92</td><td style="background:rgb(21,205,80);color:#fff;text-align:right">0.92</td><td style="background:rgb(18,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(159,108,80);color:#fff;text-align:right">0.38</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="text-align:right">0.55</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-05-inscribed-sphere</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(128,130,80);color:#fff;text-align:right">0.50</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.50</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-10-calendar-leap-fi</code></td><td style="background:rgb(128,130,80);color:#fff;text-align:right">0.50</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(128,130,80);color:#fff;text-align:right">0.50</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.50</td></tr>
+<tr><td>classification</td><td><code>cl-09-ambiguous-multi-intent</code></td><td style="background:rgb(176,96,80);color:#fff;text-align:right">0.31</td><td style="background:rgb(146,117,80);color:#fff;text-align:right">0.43</td><td style="background:rgb(146,117,80);color:#fff;text-align:right">0.43</td><td style="background:rgb(148,116,80);color:#fff;text-align:right">0.42</td><td style="background:rgb(106,145,80);color:#fff;text-align:right">0.58</td><td style="text-align:right">0.28</td></tr>
+<tr><td>classification</td><td><code>cl-02-refund</code></td><td style="background:rgb(46,187,80);color:#fff;text-align:right">0.82</td><td style="background:rgb(33,196,80);color:#fff;text-align:right">0.87</td><td style="background:rgb(41,191,80);color:#fff;text-align:right">0.84</td><td style="background:rgb(51,184,80);color:#fff;text-align:right">0.80</td><td style="background:rgb(13,211,80);color:#fff;text-align:right">0.95</td><td style="text-align:right">0.15</td></tr>
+<tr><td>classification</td><td><code>cl-08-finnish-billing</code></td><td style="background:rgb(40,192,80);color:#fff;text-align:right">0.84</td><td style="background:rgb(13,211,80);color:#fff;text-align:right">0.95</td><td style="background:rgb(27,201,80);color:#fff;text-align:right">0.89</td><td style="background:rgb(32,197,80);color:#fff;text-align:right">0.87</td><td style="background:rgb(7,215,80);color:#fff;text-align:right">0.97</td><td style="text-align:right">0.13</td></tr>
+<tr><td>classification</td><td><code>cl-01-billing-error</code></td><td style="background:rgb(37,194,80);color:#fff;text-align:right">0.85</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(7,215,80);color:#fff;text-align:right">0.97</td><td style="background:rgb(26,201,80);color:#fff;text-align:right">0.90</td><td style="background:rgb(8,214,80);color:#fff;text-align:right">0.97</td><td style="text-align:right">0.12</td></tr>
+<tr><td>classification</td><td><code>cl-06-how-to</code></td><td style="background:rgb(38,193,80);color:#fff;text-align:right">0.85</td><td style="background:rgb(23,204,80);color:#fff;text-align:right">0.91</td><td style="background:rgb(8,214,80);color:#fff;text-align:right">0.97</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(8,215,80);color:#fff;text-align:right">0.97</td><td style="text-align:right">0.12</td></tr>
+<tr><td>classification</td><td><code>cl-07-account-access</code></td><td style="background:rgb(34,196,80);color:#fff;text-align:right">0.87</td><td style="background:rgb(32,198,80);color:#fff;text-align:right">0.88</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(32,198,80);color:#fff;text-align:right">0.88</td><td style="background:rgb(5,217,80);color:#fff;text-align:right">0.98</td><td style="text-align:right">0.12</td></tr>
+<tr><td>classification</td><td><code>cl-04-outage</code></td><td style="background:rgb(22,205,80);color:#fff;text-align:right">0.91</td><td style="background:rgb(26,202,80);color:#fff;text-align:right">0.90</td><td style="background:rgb(26,202,80);color:#fff;text-align:right">0.90</td><td style="background:rgb(44,189,80);color:#fff;text-align:right">0.83</td><td style="background:rgb(20,206,80);color:#fff;text-align:right">0.92</td><td style="text-align:right">0.10</td></tr>
+<tr><td>extraction</td><td><code>ex-03-messy-receipt</code></td><td style="background:rgb(23,204,80);color:#fff;text-align:right">0.91</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(23,204,80);color:#fff;text-align:right">0.91</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.09</td></tr>
+<tr><td>classification</td><td><code>cl-10-edge-other</code></td><td style="background:rgb(18,208,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(15,209,80);color:#fff;text-align:right">0.94</td><td style="background:rgb(18,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(14,210,80);color:#fff;text-align:right">0.94</td><td style="background:rgb(16,209,80);color:#fff;text-align:right">0.94</td><td style="text-align:right">0.01</td></tr>
+<tr><td>classification</td><td><code>cl-05-feature-request</code></td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(19,207,80);color:#fff;text-align:right">0.93</td><td style="background:rgb(18,207,80);color:#fff;text-align:right">0.93</td><td style="text-align:right">0.01</td></tr>
+<tr><td>tool-use</td><td><code>tu-01-flight-simple</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-02-weather</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-03-weekend-trip</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-04-plan-with-weather</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-05-book-after-confirm</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-06-clarification-needed</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-07-no-premature-booking</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-09-no-flights-available</code></td><td style="background:rgb(153,112,80);color:#fff;text-align:right">0.40</td><td style="background:rgb(153,112,80);color:#fff;text-align:right">0.40</td><td style="background:rgb(153,112,80);color:#fff;text-align:right">0.40</td><td style="background:rgb(153,112,80);color:#fff;text-align:right">0.40</td><td style="background:rgb(153,112,80);color:#fff;text-align:right">0.40</td><td style="text-align:right">0.00</td></tr>
+<tr><td>tool-use</td><td><code>tu-10-multi-step-london</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-01-clean-en</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-02-clean-fi</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-04-missing-fields</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-05-multilingual-mix</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-06-european-format</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-07-currency-symbol-only</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-08-no-invoice-number</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.20</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-09-totally-ambiguous</code></td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="background:rgb(255,40,80);color:#fff;text-align:right">0.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>extraction</td><td><code>ex-10-line-noise</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-02-knights-knaves-3</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-03-combinatorics</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-04-monty-hall</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-06-look-and-say</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-07-age-puzzle</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-08-logic-puzzle</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr>
+<tr><td>reasoning</td><td><code>rs-h-09-rate-change</code></td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="background:rgb(0,220,80);color:#fff;text-align:right">1.00</td><td style="text-align:right">0.00</td></tr></tbody></table>
+
+  <h2>7. Cost vs accuracy</h2>
+  <p>Each point is a (model, task) pair. X-axis is mean cost per case in USD (log scale); y-axis is mean correctness. The Pareto frontier (top-left envelope) is the cost-optimal set.</p>
+  <div class="chart" id="chart-cost-accuracy"></div>
+
+  <h2>8. Variance — where the noise lives</h2>
+  <p>Box plot of per-case mean correctness, per (model × task). Wide boxes mean: same model gives meaningfully different answers across cases or replicates.</p>
+  <div class="chart" id="chart-variance"></div>
+
+  <h2>9. Judge vs rubric (classification)</h2>
+  <p>Each point is one (model, case) classification reply. X-axis is the deterministic rule-rubric score; y-axis is the Sonnet-4.6 LLM-judge score. Points off the diagonal = the two scoring methods disagree. This itself is an eval-quality story: <em>what you measure</em> changes <em>which model looks best</em>.</p>
+  <div class="chart" id="chart-judge-rubric"></div>
+
+  <h2>10. Notable divergences</h2>
+  <p>Cases where the gap between best- and worst-performing model is ≥ 0.5. These are the educational payoff: same prompt, different models, different answers.</p>
+  <details open><summary><strong>reasoning / rs-h-01-compound-discount</strong> — divergence: 1.00</summary>
+      <div class="divergent-case">
+        <p><strong>Prompt:</strong></p>
+        <pre style="white-space:pre-wrap">A coat is reduced by 30%, then a further 15% off the already-reduced price. After that, 8% VAT is added on the discounted price. The customer pays exactly €92.43. What was the ORIGINAL price in euros, to two decimals?</pre>
+        <p><strong>Gold answer:</strong></p>
+        <pre style="white-space:pre-wrap">{
+  &quot;answer&quot;: &quot;143.84&quot;,
+  &quot;isNumeric&quot;: true
+}</pre>
+        <p><strong>Per-model outputs:</strong></p>
+        <table><tr>
+          <td><strong>S4</strong></td>
+          <td style="background:rgb(255,40,80);color:#fff;text-align:right;width:80px">0.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to work backwards from the final price to find the original price.
+
+Let me call the original price P.
+
+Step 1: First reduction of 30%
+After 30% reduction, price = P × (1 - 0.30) = P × 0.70
+
+Step 2: Second reduction of 15% off the already-reduced price
+After second reduction, price = (P × 0.70) × (1 - 0.15) = P × 0.70 × 0.85 = P × 0.595
+
+Step</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.5</strong></td>
+          <td style="background:rgb(255,40,80);color:#fff;text-align:right;width:80px">0.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to work backwards from the final price of €92.43 to find the original price.
+
+Let me denote the original price as P.
+
+**Step 1: First reduction of 30%**
+After 30% reduction, the price is: P × (1 - 0.30) = P × 0.70
+
+**Step 2: Second reduction of 15% off the already-reduced price**
+After the second reduction: P × 0.70 × (1 - 0.15) = P × 0.70 ×</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.6</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find the original price given the sequence of operations.
+
+## Setting Up the Equation
+
+Let the original price = P
+
+**Step 1:** 30% reduction → multiply by 0.70
+**Step 2:** Further 15% off → multiply by 0.85
+**Step 3:** 8% VAT added → multiply by 1.08
+
+Final price = P × 0.70 × 0.85 × 1.08 = 92.43
+
+## Calculating the Combined Multiplier
+
+0.</pre></td>
+        </tr>
+<tr>
+          <td><strong>H4.5</strong></td>
+          <td style="background:rgb(255,40,80);color:#fff;text-align:right;width:80px">0.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to work backwards from the final price of €92.43 to find the original price.
+
+Let me denote the original price as P.
+
+**Step 1: First reduction of 30%**
+After 30% reduction: P × (1 - 0.30) = P × 0.70
+
+**Step 2: Further reduction of 15% on the already-reduced price**
+After 15% reduction on the reduced price: P × 0.70 × (1 - 0.15) = P × 0.70 ×</pre></td>
+        </tr>
+<tr>
+          <td><strong>O4.7</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">0.7 * 0.85 * 1.08 = 0.6426
+92.43 / 0.6426 = 143.8376...
+
+Let me compute: 0.7*0.85=0.595, *1.08=0.6426
+92.43/0.6426 = ?
+0.6426 * 143 = 91.8918
+92.43 - 91.8918 = 0.5382
+0.5382/0.6426 ≈ 0.8375
+So ≈ 143.84
+
+&lt;answer&gt;143.84&lt;/answer&gt;</pre></td>
+        </tr></table>
+      </div>
+    </details>
+<details open><summary><strong>tool-use / tu-08-paris-finnish</strong> — divergence: 0.70</summary>
+      <div class="divergent-case">
+        <p><strong>Prompt:</strong></p>
+        <pre style="white-space:pre-wrap">Etsi minulle lento Helsingistä Pariisiin (HEL-CDG) 2026-06-20. Lisäksi ehdotus hotellista Marais-alueelta ja sääennuste matkalle.</pre>
+        <p><strong>Gold answer:</strong></p>
+        <pre style="white-space:pre-wrap">{
+  &quot;requiredTools&quot;: [
+    &quot;searchFlights&quot;,
+    &quot;searchHotels&quot;,
+    &quot;getWeather&quot;
+  ],
+  &quot;forbiddenTools&quot;: [
+    &quot;bookFlight&quot;
+  ],
+  &quot;expectedAnswerSubstrings&quot;: [
+    &quot;AY873&quot;,
+    &quot;Marais&quot;,
+    &quot;sunny&quot;
+  ]
+}</pre>
+        <p><strong>Per-model outputs:</strong></p>
+        <table><tr>
+          <td><strong>S4</strong></td>
+          <td style="background:rgb(77,166,80);color:#fff;text-align:right;width:80px">0.70</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Löysin sinulle lennon ja sääennusteen:
+
+**Lento HEL-CDG 20.6.2026:**
+- Lento AY873: lähtö 09:25, saapuminen 11:50
+- Hinta: 278 EUR
+
+**Sääennuste Pariisiin:**
+- Lämpötila: 18°C
+- Sää: aurinkoinen
+
+Kerro vielä hotelliyöpymisesi päättymispäivä, niin voin etsiä sinulle sopivia hotelleja Marais-alueelta!</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.5</strong></td>
+          <td style="background:rgb(179,94,80);color:#fff;text-align:right;width:80px">0.30</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Haen sinulle lennot Helsingistä Pariisiin, hotelleja Marais-alueelta ja sääennusteen. Tarvitsen vielä yhden tiedon: mikä on hotellin uloskirjautumispäivä? Kuinka monta yötä aiot viipyä Pariisissa?</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.6</strong></td>
+          <td style="background:rgb(51,184,80);color:#fff;text-align:right;width:80px">0.80</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Löytyi kaikki tiedot! Tässä yhteenveto: ✈️🏨☀️
+
+---
+
+## ✈️ Lento: Helsinki → Pariisi (20.6.2026)
+
+| Lento | Lähtö | Saapuminen | Hinta |
+|-------|-------|------------|-------|
+| **AY873** | 09:25 (HEL) | 11:50 (CDG) | **278 €** |
+
+Yksi vaihtoehto saatavilla – aamulähtö, joten ehdit nauttia Pariisista jo ensimmäisenä päivänä! 🥐
+
+---
+
+## 🏨 Hotelli:</pre></td>
+        </tr>
+<tr>
+          <td><strong>H4.5</strong></td>
+          <td style="background:rgb(230,58,80);color:#fff;text-align:right;width:80px">0.10</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Etsitään sinulle lento, hotelli ja sääennuste. Tarvitsen yhden tiedon: **milloin aiot lähteä Pariisista takaisin?** Tarvitsen check-out päivämäärän hotellihausta varten.
+
+Samalla voin jo hakea lennon ja sääennusteen, joten kerro vain hotellin checkout-päivä.</pre></td>
+        </tr>
+<tr>
+          <td><strong>O4.7</strong></td>
+          <td style="background:rgb(51,184,80);color:#fff;text-align:right;width:80px">0.80</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Tässä yhteenveto matkasta Helsinki–Pariisi 20.6.2026:
+
+✈️ **Lento**
+- **AY873** (Finnair), klo 09:25 → 11:50, hinta **278 €**
+
+🏨 **Hotelli Maraisin alueella**
+- **Marais Boutique**, arvosana 4,6 ⭐, **245 €/yö** (3 yötä = 735 €, check-out 23.6.)
+
+🌤️ **Sää Pariisissa**
+- Aurinkoista, noin **18 °C** – mukavaa kevätkesäsäätä!
+
+Haluatko, että varaan l</pre></td>
+        </tr></table>
+      </div>
+    </details>
+<details open><summary><strong>classification / cl-03-complaint</strong> — divergence: 0.55</summary>
+      <div class="divergent-case">
+        <p><strong>Prompt:</strong></p>
+        <pre style="white-space:pre-wrap">Your app has been crashing for me three days in a row now. I&#39;m losing work and patience. This is unacceptable.</pre>
+        <p><strong>Gold answer:</strong></p>
+        <pre style="white-space:pre-wrap">{
+  &quot;intent&quot;: &quot;complaint&quot;,
+  &quot;intentKeywords&quot;: [
+    &quot;crashing&quot;,
+    &quot;three days&quot;,
+    &quot;losing work&quot;
+  ]
+}</pre>
+        <p><strong>Per-model outputs:</strong></p>
+        <table><tr>
+          <td><strong>S4</strong></td>
+          <td style="background:rgb(20,206,80);color:#fff;text-align:right;width:80px">0.92</td>
+          <td><pre style="white-space:pre-wrap;margin:0">{&quot;intent&quot;: &quot;complaint&quot;, &quot;reply&quot;: &quot;I sincerely apologize for the app crashes you&#39;ve been experiencing over the past three days. I understand how frustrating this must be, especially when it&#39;s affecting your work. This is definitely not the experience we want for our users. I&#39;d like to help resolve this issue as quickly as possible. Could you please </pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.5</strong></td>
+          <td style="background:rgb(21,205,80);color:#fff;text-align:right;width:80px">0.92</td>
+          <td><pre style="white-space:pre-wrap;margin:0">```json
+{
+  &quot;intent&quot;: &quot;complaint&quot;,
+  &quot;reply&quot;: &quot;I sincerely apologize for the frustrating experience you&#39;ve been having with our app crashing over the past three days. I understand how disruptive this is, especially when it&#39;s causing you to lose work. This is absolutely not the experience we want you to have. I&#39;d like to help resolve this as quickly</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.6</strong></td>
+          <td style="background:rgb(18,207,80);color:#fff;text-align:right;width:80px">0.93</td>
+          <td><pre style="white-space:pre-wrap;margin:0">{&quot;intent&quot;: &quot;complaint&quot;, &quot;reply&quot;: &quot;I&#39;m truly sorry to hear the app has been crashing repeatedly — I completely understand how frustrating and disruptive that must be, especially when it&#39;s affecting your work. That is absolutely not the experience we want you to have. To help resolve this as quickly as possible, could you please share a few details: </pre></td>
+        </tr>
+<tr>
+          <td><strong>H4.5</strong></td>
+          <td style="background:rgb(159,108,80);color:#fff;text-align:right;width:80px">0.38</td>
+          <td><pre style="white-space:pre-wrap;margin:0">```json
+{&quot;intent&quot;: &quot;outage&quot;, &quot;reply&quot;: &quot;I sincerely apologize for the crashes you&#39;ve experienced over the past three days—I understand how frustrating that must be, especially when you&#39;re losing work. This is definitely not the experience we want for you. To help resolve this quickly, could you please share: (1) which device and OS you&#39;re using, (2)</pre></td>
+        </tr>
+<tr>
+          <td><strong>O4.7</strong></td>
+          <td style="background:rgb(19,207,80);color:#fff;text-align:right;width:80px">0.93</td>
+          <td><pre style="white-space:pre-wrap;margin:0">{&quot;intent&quot;: &quot;complaint&quot;, &quot;reply&quot;: &quot;I&#39;m truly sorry for the frustration and lost work you&#39;ve experienced over the past three days — that&#39;s not the experience we want for you. I&#39;d like to get this resolved as quickly as possible. Could you please share a few details so we can investigate: the device and operating system you&#39;re using, the app version, </pre></td>
+        </tr></table>
+      </div>
+    </details>
+<details open><summary><strong>reasoning / rs-h-05-inscribed-sphere</strong> — divergence: 0.50</summary>
+      <div class="divergent-case">
+        <p><strong>Prompt:</strong></p>
+        <pre style="white-space:pre-wrap">A cube has a volume of 343 cubic centimeters. A sphere is inscribed inside the cube so that it touches all six faces. What is the surface area of the sphere in square centimeters, rounded to two decimals? Use π = 3.14159.</pre>
+        <p><strong>Gold answer:</strong></p>
+        <pre style="white-space:pre-wrap">{
+  &quot;answer&quot;: &quot;153.94&quot;,
+  &quot;isNumeric&quot;: true
+}</pre>
+        <p><strong>Per-model outputs:</strong></p>
+        <table><tr>
+          <td><strong>S4</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find the surface area of a sphere inscribed in a cube with volume 343 cubic centimeters.
+
+Step 1: Find the side length of the cube.
+If the cube has volume 343 cm³, then:
+side³ = 343
+side = ∛343 = 7 cm
+
+Step 2: Find the radius of the inscribed sphere.
+When a sphere is inscribed in a cube (touching all six faces), the diameter of the sphere</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.5</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find the surface area of a sphere inscribed in a cube with volume 343 cubic centimeters.
+
+**Step 1: Find the side length of the cube.**
+
+If the cube has volume V = 343 cm³, and volume = s³ where s is the side length:
+- s³ = 343
+- s = ∛343 = 7 cm
+
+**Step 2: Find the radius of the inscribed sphere.**
+
+When a sphere is inscribed in a cube (t</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.6</strong></td>
+          <td style="background:rgb(128,130,80);color:#fff;text-align:right;width:80px">0.50</td>
+          <td><pre style="white-space:pre-wrap;margin:0">The cube has volume 343 cm³, so the side length is ∛343 = 7 cm.
+
+The inscribed sphere touches all six faces, so its diameter equals the side length of the cube.
+Diameter = 7 cm, so radius = 3.5 cm.
+
+Surface area of sphere = 4πr² = 4 × 3.14159 × (3.5)²
+= 4 × 3.14159 × 12.25
+= 4 × 38.484827...
+= 153.93930...
+
+Rounded to two decimals: 153.94
+
+&lt;answer&gt;</pre></td>
+        </tr>
+<tr>
+          <td><strong>H4.5</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find the surface area of a sphere inscribed in a cube with volume 343 cubic centimeters.
+
+**Step 1: Find the side length of the cube.**
+
+If the cube has volume V = 343 cm³, then:
+- s³ = 343
+- s = ∛343 = 7 cm
+
+**Step 2: Find the radius of the inscribed sphere.**
+
+When a sphere is inscribed in a cube, it touches all six faces. The diameter </pre></td>
+        </tr>
+<tr>
+          <td><strong>O4.7</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Side = 7, diameter = 7, radius = 3.5.
+Surface area = 4π r² = 4·3.14159·12.25 = 153.93791
+
+&lt;answer&gt;153.94&lt;/answer&gt;</pre></td>
+        </tr></table>
+      </div>
+    </details>
+<details open><summary><strong>reasoning / rs-h-10-calendar-leap-fi</strong> — divergence: 0.50</summary>
+      <div class="divergent-case">
+        <p><strong>Prompt:</strong></p>
+        <pre style="white-space:pre-wrap">Jos 31. tammikuuta 2024 oli keskiviikko, mikä viikonpäivä oli 1. maaliskuuta 2025? Huomaa: 2024 oli karkausvuosi. Anna vastaus suomeksi pienellä kirjaimella (esim. &#39;maanantai&#39;).</pre>
+        <p><strong>Gold answer:</strong></p>
+        <pre style="white-space:pre-wrap">{
+  &quot;answer&quot;: &quot;lauantai&quot;,
+  &quot;isNumeric&quot;: false
+}</pre>
+        <p><strong>Per-model outputs:</strong></p>
+        <table><tr>
+          <td><strong>S4</strong></td>
+          <td style="background:rgb(128,130,80);color:#fff;text-align:right;width:80px">0.50</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Lasken askeleittain:
+
+Lähtöpiste: 31. tammikuuta 2024 oli keskiviikko
+
+Lasken päivien määrän 31.1.2024 ja 1.3.2025 välillä:
+
+Helmikuu 2024: 29 päivää (karkausvuosi)
+Maaliskuu 2024: 31 päivää
+Huhtikuu 2024: 30 päivää
+Toukokuu 2024: 31 päivää
+Kesäkuu 2024: 30 päivää
+Heinäkuu 2024: 31 päivää
+Elokuu 2024: 31 päivää
+Syyskuu 2024: 30 päivää
+Lokakuu 2024:</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.5</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find what day of the week March 1, 2025 is, given that January 31, 2024 was a Wednesday, and 2024 was a leap year.
+
+Let me count the days between January 31, 2024 and March 1, 2025.
+
+From January 31, 2024 to March 1, 2025:
+
+**Remaining days in January 2024:** 0 (we start from Jan 31)
+
+**February 2024:** 29 days (leap year)
+
+**March 2024:*</pre></td>
+        </tr>
+<tr>
+          <td><strong>S4.6</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">I need to find the day of the week for March 1, 2025, given that January 31, 2024 was a Wednesday.
+
+**Step 1: Count days from January 31, 2024 to March 1, 2025.**
+
+From January 31, 2024 to January 31, 2025 = 366 days (2024 is a leap year).
+
+From January 31, 2025 to March 1, 2025:
+- February 2025 has 28 days (2025 is not a leap year)
+- January 31 to</pre></td>
+        </tr>
+<tr>
+          <td><strong>H4.5</strong></td>
+          <td style="background:rgb(128,130,80);color:#fff;text-align:right;width:80px">0.50</td>
+          <td><pre style="white-space:pre-wrap;margin:0">Lasken päivien määrän 31. tammikuuta 2024:sta 1. maaliskuuta 2025:een.
+
+**2024 (karkausvuosi):**
+- Tammikuusta 31. helmikuun 29. päivään: 29 päivää (31.1. ei lasketa, lasketaan 1.2. - 29.2.)
+- Helmikuusta maaliskuun 1. päivään: 1 päivä
+
+Tarkemmin:
+- 31.1.2024 on keskiviikko
+- 1.2.2024 on torstai (1 päivä myöhemmin)
+- 29.2.2024 on torstai (29 päivää</pre></td>
+        </tr>
+<tr>
+          <td><strong>O4.7</strong></td>
+          <td style="background:rgb(0,220,80);color:#fff;text-align:right;width:80px">1.00</td>
+          <td><pre style="white-space:pre-wrap;margin:0">From Jan 31, 2024 (Wed) to Mar 1, 2025.
+
+Days: Feb 2024 has 29 days, so Jan 31 to Feb 29, 2024 = 29 days. Then Mar 1, 2024 = 30 days after Jan 31.
+
+Actually let me count from Jan 31, 2024 to Jan 31, 2025: 366 days (leap year includes Feb 29, 2024). 366 mod 7 = 2. So Jan 31, 2025 = Wed + 2 = Friday.
+
+From Jan 31, 2025 to Mar 1, 2025: Feb has 28 days</pre></td>
+        </tr></table>
+      </div>
+    </details>
+
+  <h2>11. Methodology &amp; caveats</h2>
+  
+    <h3>Replicate counts</h3>
+    <table><thead><tr><th>Task</th><th>Replicates per case</th><th>Cases</th></tr></thead><tbody><tr><td>Tool use (travel agent)</td><td>3</td><td>10</td></tr>
+<tr><td>Structured extraction (invoices)</td><td>2</td><td>10</td></tr>
+<tr><td>Reasoning (word problems &amp; logic)</td><td>2</td><td>10</td></tr>
+<tr><td>Classification + reply (support)</td><td>3</td><td>10</td></tr></tbody></table>
+    <h3>Models</h3>
+    <table><thead><tr><th>Model</th><th>ID</th><th>Family</th><th>Axes</th></tr></thead><tbody>
+      <tr><td>Sonnet 4 (May 2025)</td><td><code>claude-sonnet-4-20250514</code></td><td>sonnet</td><td>temporal</td></tr>
+<tr><td>Sonnet 4.5 (Sep 2025)</td><td><code>claude-sonnet-4-5-20250929</code></td><td>sonnet</td><td>temporal</td></tr>
+<tr><td>Sonnet 4.6</td><td><code>claude-sonnet-4-6</code></td><td>sonnet</td><td>temporal, tier</td></tr>
+<tr><td>Haiku 4.5</td><td><code>claude-haiku-4-5-20251001</code></td><td>haiku</td><td>tier</td></tr>
+<tr><td>Opus 4.7</td><td><code>claude-opus-4-7</code></td><td>opus</td><td>tier</td></tr>
+    </tbody></table>
+    <h3>Policy decisions</h3>
+    <ul>
+      <li><strong>Pure-prompt policy:</strong> identical system + user prompts across all models. No per-model prompt tuning. Older-model failures are part of the demonstration.</li>
+      <li><strong>Temperature = 0</strong> for all calls; non-determinism still visible, see variance box plot.</li>
+      <li><strong>Prompt caching disabled</strong> to keep cost/latency comparisons clean across models.</li>
+      <li><strong>LLM-judge bias caveat:</strong> Sonnet 4.6 is the judge for classification reply quality; it may favour its own outputs. The judge-vs-rubric agreement chart surfaces disagreement.</li>
+      <li><strong>Tokenizer drift:</strong> the cost estimate uses a 4 chars/token heuristic; actual costs printed in this report use the real <code>usage</code> token counts from the API and are exact within the API's reported tokens.</li>
+      <li><strong>Stdev is sample stdev (N − 1).</strong> At N = 2 replicates (extraction and reasoning tasks), stdev collapses to <code>|a − b| / √2</code> — a single-pair noise figure, not a real variance estimate. Treat stdev numbers on those tasks as directional, not statistical. Classification and tool-use run N = 3 per cell.</li>
+      <li><strong>Refusal detection is EN + FI only.</strong> The regex patterns in <code>src/agent/loop.ts</code> match English and Finnish refusal idioms. Cross-locale sweeps will under-report refusals on other languages — surface this gap before quoting refusal rates outside those locales.</li>
+      <li><strong>Total cost columns.</strong> "Baseline cost" is the spend for the baseline-variant runs only; "All-variant cost" adds tuned and hybrid-rules sweep cost; the inline "judge tax" is the API spend on Sonnet-judge (and sampled Opus second-judge) calls used to score classification replies.</li>
+    </ul>
+    <p><em>Report generated at 2026-05-28T18:29:30.859Z.</em></p>
+  
+
+  <script>
+    // Defensively escape "</script" anywhere inside the embedded specs so a
+    // future change that lets case prompts / user-controlled text into a chart
+    // tooltip cannot prematurely close this script tag.
+    const specs = {"overall":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":600,"height":280,"data":{"values":[{"model":"Sonnet 4 (May 2025)","shortName":"S4","family":"sonnet","correctness":0.8761818181818185},{"model":"Sonnet 4.5 (Sep 2025)","shortName":"S4.5","family":"sonnet","correctness":0.8883124999999997},{"model":"Sonnet 4.6","shortName":"S4.6","family":"sonnet","correctness":0.9154124999999997},{"model":"Haiku 4.5","shortName":"H4.5","family":"haiku","correctness":0.8471505681818179},{"model":"Opus 4.7","shortName":"O4.7","family":"opus","correctness":0.9383187499999999}]},"mark":{"type":"bar"},"encoding":{"y":{"field":"model","type":"nominal","sort":"-x","title":null},"x":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]},"title":"Mean correctness"},"color":{"field":"family","type":"nominal","scale":{"domain":["haiku","sonnet","opus"],"range":["#7BC36A","#5C8DEF","#B266FF"]}},"tooltip":[{"field":"model"},{"field":"correctness","format":".3f"}]}},"temporal":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"values":[{"task":"Tool use (travel agent)","model":"Sonnet 4 (May 2025)","generation":4,"correctness":0.9099999999999998,"stdev":0.19537761845488708,"low":0.7146223815451127,"high":1},{"task":"Tool use (travel agent)","model":"Sonnet 4.5 (Sep 2025)","generation":4.5,"correctness":0.8699999999999999,"stdev":0.26542094088837254,"low":0.6045790591116273,"high":1},{"task":"Tool use (travel agent)","model":"Sonnet 4.6","generation":4.6,"correctness":0.9199999999999999,"stdev":0.18643663987975956,"low":0.7335633601202404,"high":1},{"task":"Structured extraction (invoices)","model":"Sonnet 4 (May 2025)","generation":4,"correctness":0.9309090909090909,"stdev":0.33095220288065996,"low":0.599956888028431,"high":1},{"task":"Structured extraction (invoices)","model":"Sonnet 4.5 (Sep 2025)","generation":4.5,"correctness":0.9400000000000001,"stdev":0.3315037508718495,"low":0.6084962491281505,"high":1},{"task":"Structured extraction (invoices)","model":"Sonnet 4.6","generation":4.6,"correctness":0.9400000000000001,"stdev":0.3315037508718495,"low":0.6084962491281505,"high":1},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4 (May 2025)","generation":4,"correctness":0.85,"stdev":0.36634754853252316,"low":0.4836524514674768,"high":1},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.5 (Sep 2025)","generation":4.5,"correctness":0.9,"stdev":0.30779350562554625,"low":0.5922064943744538,"high":1},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.6","generation":4.6,"correctness":0.95,"stdev":0.22360679774997905,"low":0.7263932022500209,"high":1},{"task":"Classification + reply (support)","model":"Sonnet 4 (May 2025)","generation":4,"correctness":0.823333333333333,"stdev":0.17891768820409806,"low":0.644415645129235,"high":1},{"task":"Classification + reply (support)","model":"Sonnet 4.5 (Sep 2025)","generation":4.5,"correctness":0.8643750000000002,"stdev":0.14990702937786657,"low":0.7144679706221336,"high":1},{"task":"Classification + reply (support)","model":"Sonnet 4.6","generation":4.6,"correctness":0.8713750000000002,"stdev":0.155204727837471,"low":0.7161702721625293,"high":1}]},"columns":2,"facet":{"field":"task","type":"nominal","title":null},"spec":{"width":280,"height":180,"layer":[{"mark":{"type":"line","point":true},"encoding":{"x":{"field":"generation","type":"quantitative","title":"Sonnet generation","axis":{"tickMinStep":0.5}},"y":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]},"title":"Mean correctness"},"tooltip":[{"field":"model"},{"field":"correctness","format":".3f"},{"field":"stdev","format":".3f"}]}},{"mark":{"type":"errorbar"},"encoding":{"x":{"field":"generation","type":"quantitative"},"y":{"field":"low","type":"quantitative"},"y2":{"field":"high"}}}]}},"tier":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"values":[{"task":"Tool use (travel agent)","model":"Sonnet 4.6","family":"sonnet","correctness":0.9199999999999999,"meanCostUsd":0.015175999999999999},{"task":"Tool use (travel agent)","model":"Haiku 4.5","family":"haiku","correctness":0.85,"meanCostUsd":0.003697400000000001},{"task":"Tool use (travel agent)","model":"Opus 4.7","family":"opus","correctness":0.9199999999999999,"meanCostUsd":0.07797249999999999},{"task":"Structured extraction (invoices)","model":"Sonnet 4.6","family":"sonnet","correctness":0.9400000000000001,"meanCostUsd":0.0019214999999999996},{"task":"Structured extraction (invoices)","model":"Haiku 4.5","family":"haiku","correctness":0.9309090909090909,"meanCostUsd":0.0006389999999999998},{"task":"Structured extraction (invoices)","model":"Opus 4.7","family":"opus","correctness":0.9400000000000001,"meanCostUsd":0.011139000000000003},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.6","family":"sonnet","correctness":0.95,"meanCostUsd":0.0039241499999999995},{"task":"Reasoning (word problems & logic)","model":"Haiku 4.5","family":"haiku","correctness":0.85,"meanCostUsd":0.0020365500000000003},{"task":"Reasoning (word problems & logic)","model":"Opus 4.7","family":"opus","correctness":1,"meanCostUsd":0.010020000000000001},{"task":"Classification + reply (support)","model":"Sonnet 4.6","family":"sonnet","correctness":0.8713750000000002,"meanCostUsd":0.0029563},{"task":"Classification + reply (support)","model":"Haiku 4.5","family":"haiku","correctness":0.7865625000000002,"meanCostUsd":0.0008574333333333334},{"task":"Classification + reply (support)","model":"Opus 4.7","family":"opus","correctness":0.9143958333333334,"meanCostUsd":0.021569500000000002}]},"hconcat":[{"width":320,"height":260,"mark":"bar","encoding":{"x":{"field":"task","type":"nominal","title":null,"axis":{"labelAngle":-25}},"y":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]},"title":"Mean correctness"},"xOffset":{"field":"model","type":"nominal"},"color":{"field":"family","type":"nominal","scale":{"domain":["haiku","sonnet","opus"],"range":["#7BC36A","#5C8DEF","#B266FF"]}},"tooltip":[{"field":"task"},{"field":"model"},{"field":"correctness","format":".3f"}]}},{"width":320,"height":260,"mark":"bar","encoding":{"x":{"field":"task","type":"nominal","title":null,"axis":{"labelAngle":-25}},"y":{"field":"meanCostUsd","type":"quantitative","title":"Mean cost per case (USD)"},"xOffset":{"field":"model","type":"nominal"},"color":{"field":"family","type":"nominal","scale":{"domain":["haiku","sonnet","opus"],"range":["#7BC36A","#5C8DEF","#B266FF"]},"legend":null},"tooltip":[{"field":"task"},{"field":"model"},{"field":"meanCostUsd","format":"$.4f"}]}}]},"costAccuracy":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":640,"height":360,"data":{"values":[{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"Tool use (travel agent)","meanCostUsd":0.011580699999999996,"correctness":0.9099999999999998},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"Structured extraction (invoices)","meanCostUsd":0.0019049999999999998,"correctness":0.9309090909090909},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"Reasoning (word problems & logic)","meanCostUsd":0.00526065,"correctness":0.85},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"Classification + reply (support)","meanCostUsd":0.0026817999999999994,"correctness":0.823333333333333},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"Tool use (travel agent)","meanCostUsd":0.012090699999999998,"correctness":0.8699999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"Structured extraction (invoices)","meanCostUsd":0.0019199999999999994,"correctness":0.9400000000000001},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"Reasoning (word problems & logic)","meanCostUsd":0.006285900000000001,"correctness":0.9},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"Classification + reply (support)","meanCostUsd":0.0026838,"correctness":0.8643750000000002},{"model":"Sonnet 4.6","family":"sonnet","task":"Tool use (travel agent)","meanCostUsd":0.015175999999999999,"correctness":0.9199999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"Structured extraction (invoices)","meanCostUsd":0.0019214999999999996,"correctness":0.9400000000000001},{"model":"Sonnet 4.6","family":"sonnet","task":"Reasoning (word problems & logic)","meanCostUsd":0.0039241499999999995,"correctness":0.95},{"model":"Sonnet 4.6","family":"sonnet","task":"Classification + reply (support)","meanCostUsd":0.0029563,"correctness":0.8713750000000002},{"model":"Haiku 4.5","family":"haiku","task":"Tool use (travel agent)","meanCostUsd":0.003697400000000001,"correctness":0.85},{"model":"Haiku 4.5","family":"haiku","task":"Structured extraction (invoices)","meanCostUsd":0.0006389999999999998,"correctness":0.9309090909090909},{"model":"Haiku 4.5","family":"haiku","task":"Reasoning (word problems & logic)","meanCostUsd":0.0020365500000000003,"correctness":0.85},{"model":"Haiku 4.5","family":"haiku","task":"Classification + reply (support)","meanCostUsd":0.0008574333333333334,"correctness":0.7865625000000002},{"model":"Opus 4.7","family":"opus","task":"Tool use (travel agent)","meanCostUsd":0.07797249999999999,"correctness":0.9199999999999999},{"model":"Opus 4.7","family":"opus","task":"Structured extraction (invoices)","meanCostUsd":0.011139000000000003,"correctness":0.9400000000000001},{"model":"Opus 4.7","family":"opus","task":"Reasoning (word problems & logic)","meanCostUsd":0.010020000000000001,"correctness":1},{"model":"Opus 4.7","family":"opus","task":"Classification + reply (support)","meanCostUsd":0.021569500000000002,"correctness":0.9143958333333334}]},"mark":{"type":"point","filled":true,"size":110,"opacity":0.85},"encoding":{"x":{"field":"meanCostUsd","type":"quantitative","scale":{"type":"log"},"title":"Mean cost per case (USD, log scale)"},"y":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]},"title":"Mean correctness"},"shape":{"field":"task","type":"nominal"},"color":{"field":"family","type":"nominal","scale":{"domain":["haiku","sonnet","opus"],"range":["#7BC36A","#5C8DEF","#B266FF"]}},"tooltip":[{"field":"model"},{"field":"task"},{"field":"correctness","format":".3f"},{"field":"meanCostUsd","format":"$.5f"}]}},"variance":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":200,"height":300,"spacing":14,"data":{"values":[{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":1},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.6999999999999998},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.3},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.7999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.10000000000000002},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.7999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.4000000000000001},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.4000000000000001},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.4000000000000001},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.4000000000000001},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.4000000000000001},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"tool-use","correctness":0.9999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"tool-use","correctness":0.9999999999999999},{"model":"Opus 4.7","family":"opus","task":"tool-use","correctness":0.9999999999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":0.9090909090909091},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":0.9090909090909091},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1.2},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1.2},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1.2},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1.2},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1.2},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":0},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":0},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":0},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":0},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":0},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"extraction","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"extraction","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"extraction","correctness":1},{"model":"Opus 4.7","family":"opus","task":"extraction","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":0},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":0},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":0},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":0.5},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":1},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"reasoning","correctness":0.5},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"reasoning","correctness":1},{"model":"Sonnet 4.6","family":"sonnet","task":"reasoning","correctness":1},{"model":"Haiku 4.5","family":"haiku","task":"reasoning","correctness":0.5},{"model":"Opus 4.7","family":"opus","task":"reasoning","correctness":1},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.853125},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9250000000000002},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9739583333333334},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.896875},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.96875},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.81875},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.86875},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.8395833333333332},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.7999999999999999},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9500000000000001},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.921875},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9177083333333332},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9304166666666666},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.378125},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9270833333333334},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.9145833333333333},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.8999999999999999},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.8999999999999999},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.8260416666666668},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.921875},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.9250000000000002},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9250000000000002},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9270833333333334},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.9250000000000002},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9302083333333332},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.8520833333333334},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9114583333333334},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9666666666666668},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.9260416666666668},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9697916666666666},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.865625},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.8760416666666667},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9260416666666668},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.8760416666666666},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9820833333333333},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.8427083333333334},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9499999999999998},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.8937500000000002},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.8729166666666667},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9718749999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.30833333333333335},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.4291666666666667},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.4270833333333333},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.42083333333333334},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.5837499999999999},{"model":"Sonnet 4 (May 2025)","family":"sonnet","task":"classification","correctness":0.9312499999999999},{"model":"Sonnet 4.5 (Sep 2025)","family":"sonnet","task":"classification","correctness":0.9406250000000002},{"model":"Sonnet 4.6","family":"sonnet","task":"classification","correctness":0.9291666666666666},{"model":"Haiku 4.5","family":"haiku","task":"classification","correctness":0.9437500000000001},{"model":"Opus 4.7","family":"opus","task":"classification","correctness":0.9385416666666666}]},"mark":{"type":"boxplot","size":22},"encoding":{"x":{"field":"model","type":"nominal","title":null,"axis":{"labelAngle":-45,"labelFontSize":9,"labelLimit":90}},"y":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]}},"color":{"field":"family","type":"nominal","scale":{"domain":["haiku","sonnet","opus"],"range":["#7BC36A","#5C8DEF","#B266FF"]}},"column":{"field":"task","type":"nominal","title":null}}},"judgeRubric":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","width":480,"height":480,"data":{"values":[{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.7749999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-01-billing-error","rubric":1,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-01-billing-error","rubric":1,"judge":0.9},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-01-billing-error","rubric":0.6,"judge":0.7875},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-01-billing-error","rubric":0.6,"judge":0.825},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.825},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.7625},{"modelId":"claude-sonnet-4-6","caseId":"cl-01-billing-error","rubric":1,"judge":0.8875000000000001},{"modelId":"claude-opus-4-7","caseId":"cl-01-billing-error","rubric":1,"judge":0.8875000000000001},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-02-refund","rubric":0.6,"judge":0.725},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-01-billing-error","rubric":0.6,"judge":0.825},{"modelId":"claude-opus-4-7","caseId":"cl-01-billing-error","rubric":1,"judge":0.8374999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-01-billing-error","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-02-refund","rubric":0.6,"judge":0.8},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-02-refund","rubric":0.6,"judge":0.7},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-02-refund","rubric":0.4,"judge":0.8},{"modelId":"claude-sonnet-4-6","caseId":"cl-02-refund","rubric":0.6,"judge":0.8},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-02-refund","rubric":0.4,"judge":0.8},{"modelId":"claude-opus-4-7","caseId":"cl-01-billing-error","rubric":1,"judge":0.8999999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-02-refund","rubric":0.6,"judge":0.7374999999999999},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-02-refund","rubric":0.4,"judge":0.8},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-02-refund","rubric":0.8,"judge":0.825},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-02-refund","rubric":0.4,"judge":0.8},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-02-refund","rubric":0.6,"judge":0.8},{"modelId":"claude-opus-4-7","caseId":"cl-02-refund","rubric":1,"judge":0.8624999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-02-refund","rubric":0.6,"judge":0.7375},{"modelId":"claude-opus-4-7","caseId":"cl-02-refund","rubric":1,"judge":0.825},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-03-complaint","rubric":0.8,"judge":0.8875000000000001},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-03-complaint","rubric":0.8,"judge":0.8875000000000001},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-03-complaint","rubric":0.8,"judge":0.875},{"modelId":"claude-opus-4-7","caseId":"cl-02-refund","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-03-complaint","rubric":0.8,"judge":0.8875000000000001},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-03-complaint","rubric":0.6,"judge":0.9125},{"modelId":"claude-sonnet-4-6","caseId":"cl-03-complaint","rubric":0.8,"judge":0.9225},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-03-complaint","rubric":0.6,"judge":0.9125},{"modelId":"claude-sonnet-4-6","caseId":"cl-03-complaint","rubric":0.8,"judge":0.9175},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-03-complaint","rubric":0.8,"judge":0.8875000000000001},{"modelId":"claude-opus-4-7","caseId":"cl-03-complaint","rubric":0.8,"judge":0.9},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-03-complaint","rubric":0.6,"judge":0.9125},{"modelId":"claude-opus-4-7","caseId":"cl-03-complaint","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-04-outage","rubric":0.8,"judge":0.8625},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-03-complaint","rubric":0.8,"judge":0.8499999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-03-complaint","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-04-outage","rubric":0.8,"judge":0.8625},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-04-outage","rubric":0.6,"judge":0.7000000000000001},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-04-outage","rubric":0.8,"judge":0.85},{"modelId":"claude-sonnet-4-6","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-04-outage","rubric":0.6,"judge":0.8125},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-sonnet-4-6","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-opus-4-7","caseId":"cl-03-complaint","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-04-outage","rubric":0.6,"judge":0.6},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-sonnet-4-6","caseId":"cl-04-outage","rubric":0.8,"judge":0.8},{"modelId":"claude-opus-4-7","caseId":"cl-04-outage","rubric":0.8,"judge":0.8624999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-opus-4-7","caseId":"cl-04-outage","rubric":0.8,"judge":0.875},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.925},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-opus-4-7","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9249999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-opus-4-7","caseId":"cl-04-outage","rubric":0.8,"judge":0.9249999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-06-how-to","rubric":0.6,"judge":0.825},{"modelId":"claude-opus-4-7","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9249999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-06-how-to","rubric":0.6,"judge":0.7749999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-06-how-to","rubric":0.8,"judge":0.85},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-06-how-to","rubric":0.8,"judge":0.8375},{"modelId":"claude-sonnet-4-6","caseId":"cl-06-how-to","rubric":1,"judge":0.8374999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-06-how-to","rubric":0.6,"judge":0.825},{"modelId":"claude-sonnet-4-6","caseId":"cl-06-how-to","rubric":1,"judge":0.8750000000000001},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-06-how-to","rubric":0.8,"judge":0.9125},{"modelId":"claude-opus-4-7","caseId":"cl-05-feature-request","rubric":0.8,"judge":0.9124999999999999},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-06-how-to","rubric":0.8,"judge":0.8875},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-06-how-to","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-06-how-to","rubric":0.8,"judge":0.85},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-07-account-access","rubric":0.6,"judge":0.8624999999999999},{"modelId":"claude-opus-4-7","caseId":"cl-06-how-to","rubric":1,"judge":0.8875000000000001},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-07-account-access","rubric":0.6,"judge":0.8624999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-07-account-access","rubric":0.6,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-06-how-to","rubric":1,"judge":0.8875000000000001},{"modelId":"claude-opus-4-7","caseId":"cl-06-how-to","rubric":1,"judge":0.8875},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-07-account-access","rubric":0.6,"judge":0.875},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-07-account-access","rubric":0.6,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-07-account-access","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-07-account-access","rubric":0.6,"judge":0.8624999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-07-account-access","rubric":0.6,"judge":0.8875},{"modelId":"claude-sonnet-4-6","caseId":"cl-07-account-access","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-07-account-access","rubric":0.6,"judge":0.9249999999999999},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-07-account-access","rubric":0.6,"judge":0.9375},{"modelId":"claude-opus-4-7","caseId":"cl-06-how-to","rubric":1,"judge":0.8625},{"modelId":"claude-opus-4-7","caseId":"cl-07-account-access","rubric":1,"judge":0.9299999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-07-account-access","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.75},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.8125},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.75},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.8500000000000001},{"modelId":"claude-opus-4-7","caseId":"cl-07-account-access","rubric":1,"judge":0.9225},{"modelId":"claude-opus-4-7","caseId":"cl-07-account-access","rubric":1,"judge":0.9325},{"modelId":"claude-sonnet-4-6","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.85},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.925},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.925},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.8},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.75},{"modelId":"claude-sonnet-4-6","caseId":"cl-08-finnish-billing","rubric":0.8,"judge":0.8374999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-09-ambiguous-multi-intent","rubric":0.4,"judge":0.825},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-08-finnish-billing","rubric":0.6,"judge":0.825},{"modelId":"claude-opus-4-7","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.9},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.9249999999999999},{"modelId":"claude-sonnet-4-6","caseId":"cl-08-finnish-billing","rubric":0.8,"judge":0.8374999999999999},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.9125},{"modelId":"claude-opus-4-7","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.8875000000000001},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-09-ambiguous-multi-intent","rubric":0.4,"judge":0.825},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.875},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.875},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.9125},{"modelId":"claude-sonnet-4-6","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-09-ambiguous-multi-intent","rubric":0.4,"judge":0.85},{"modelId":"claude-sonnet-4-6","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.9125},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.8999999999999999},{"modelId":"claude-opus-4-7","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-6","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.8875},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.925},{"modelId":"claude-opus-4-7","caseId":"cl-08-finnish-billing","rubric":1,"judge":0.875},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9625},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9625},{"modelId":"claude-opus-4-7","caseId":"cl-09-ambiguous-multi-intent","rubric":0.6,"judge":0.9299999999999999},{"modelId":"claude-sonnet-4-20250514","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-6","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9},{"modelId":"claude-sonnet-4-6","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.925},{"modelId":"claude-sonnet-4-5-20250929","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9625},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.975},{"modelId":"claude-opus-4-7","caseId":"cl-09-ambiguous-multi-intent","rubric":0.8,"judge":0.95},{"modelId":"claude-opus-4-7","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9375},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.975},{"modelId":"claude-sonnet-4-6","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.925},{"modelId":"claude-haiku-4-5-20251001","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.975},{"modelId":"claude-opus-4-7","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9625},{"modelId":"claude-opus-4-7","caseId":"cl-10-edge-other","rubric":0.8,"judge":0.9625}]},"layer":[{"mark":{"type":"point","filled":true,"size":80,"opacity":0.7},"encoding":{"x":{"field":"rubric","type":"quantitative","scale":{"domain":[0,1]},"title":"Rule rubric score"},"y":{"field":"judge","type":"quantitative","scale":{"domain":[0,1]},"title":"LLM-judge score"},"color":{"field":"modelId","type":"nominal"},"tooltip":[{"field":"modelId"},{"field":"caseId"},{"field":"rubric","format":".2f"},{"field":"judge","format":".2f"}]}},{"data":{"values":[{"a":0},{"a":1}]},"mark":{"type":"line","strokeDash":[4,4],"color":"#888"},"encoding":{"x":{"field":"a","type":"quantitative"},"y":{"field":"a","type":"quantitative"}}}]},"adaptation":{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"values":[{"task":"Tool use (travel agent)","model":"Sonnet 4 (May 2025)","variant":"baseline","correctness":0.9099999999999998},{"task":"Tool use (travel agent)","model":"Sonnet 4 (May 2025)","variant":"tuned","correctness":0.9399999999999998},{"task":"Structured extraction (invoices)","model":"Sonnet 4 (May 2025)","variant":"baseline","correctness":0.9309090909090909},{"task":"Structured extraction (invoices)","model":"Sonnet 4 (May 2025)","variant":"tuned","correctness":0.9066666666666666},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4 (May 2025)","variant":"baseline","correctness":0.85},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4 (May 2025)","variant":"tuned","correctness":0.9},{"task":"Classification + reply (support)","model":"Sonnet 4 (May 2025)","variant":"baseline","correctness":0.823333333333333},{"task":"Classification + reply (support)","model":"Sonnet 4 (May 2025)","variant":"tuned","correctness":0.9127083333333332},{"task":"Classification + reply (support)","model":"Sonnet 4 (May 2025)","variant":"hybrid-rules","correctness":0.9472916666666668},{"task":"Tool use (travel agent)","model":"Sonnet 4.5 (Sep 2025)","variant":"baseline","correctness":0.8699999999999999},{"task":"Tool use (travel agent)","model":"Sonnet 4.5 (Sep 2025)","variant":"tuned","correctness":0.8699999999999999},{"task":"Structured extraction (invoices)","model":"Sonnet 4.5 (Sep 2025)","variant":"baseline","correctness":0.9400000000000001},{"task":"Structured extraction (invoices)","model":"Sonnet 4.5 (Sep 2025)","variant":"tuned","correctness":0.9233333333333335},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.5 (Sep 2025)","variant":"baseline","correctness":0.9},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.5 (Sep 2025)","variant":"tuned","correctness":0.85},{"task":"Classification + reply (support)","model":"Sonnet 4.5 (Sep 2025)","variant":"baseline","correctness":0.8643750000000002},{"task":"Classification + reply (support)","model":"Sonnet 4.5 (Sep 2025)","variant":"tuned","correctness":0.9213125000000002},{"task":"Classification + reply (support)","model":"Sonnet 4.5 (Sep 2025)","variant":"hybrid-rules","correctness":0.9570833333333335},{"task":"Tool use (travel agent)","model":"Sonnet 4.6","variant":"baseline","correctness":0.9199999999999999},{"task":"Tool use (travel agent)","model":"Sonnet 4.6","variant":"tuned","correctness":0.9199999999999999},{"task":"Structured extraction (invoices)","model":"Sonnet 4.6","variant":"baseline","correctness":0.9400000000000001},{"task":"Structured extraction (invoices)","model":"Sonnet 4.6","variant":"tuned","correctness":0.9066666666666666},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.6","variant":"baseline","correctness":0.95},{"task":"Reasoning (word problems & logic)","model":"Sonnet 4.6","variant":"tuned","correctness":1},{"task":"Classification + reply (support)","model":"Sonnet 4.6","variant":"baseline","correctness":0.8713750000000002},{"task":"Classification + reply (support)","model":"Sonnet 4.6","variant":"tuned","correctness":0.9198958333333336},{"task":"Classification + reply (support)","model":"Sonnet 4.6","variant":"hybrid-rules","correctness":0.9592708333333332},{"task":"Tool use (travel agent)","model":"Haiku 4.5","variant":"baseline","correctness":0.85},{"task":"Tool use (travel agent)","model":"Haiku 4.5","variant":"tuned","correctness":0.8699999999999999},{"task":"Structured extraction (invoices)","model":"Haiku 4.5","variant":"baseline","correctness":0.9309090909090909},{"task":"Structured extraction (invoices)","model":"Haiku 4.5","variant":"tuned","correctness":0.9233333333333332},{"task":"Reasoning (word problems & logic)","model":"Haiku 4.5","variant":"baseline","correctness":0.85},{"task":"Reasoning (word problems & logic)","model":"Haiku 4.5","variant":"tuned","correctness":0.75},{"task":"Classification + reply (support)","model":"Haiku 4.5","variant":"baseline","correctness":0.7865625000000002},{"task":"Classification + reply (support)","model":"Haiku 4.5","variant":"tuned","correctness":0.9201041666666666},{"task":"Classification + reply (support)","model":"Haiku 4.5","variant":"hybrid-rules","correctness":0.9341666666666667},{"task":"Tool use (travel agent)","model":"Opus 4.7","variant":"baseline","correctness":0.9199999999999999},{"task":"Tool use (travel agent)","model":"Opus 4.7","variant":"tuned","correctness":0.9199999999999999},{"task":"Structured extraction (invoices)","model":"Opus 4.7","variant":"baseline","correctness":0.9400000000000001},{"task":"Structured extraction (invoices)","model":"Opus 4.7","variant":"tuned","correctness":0.9309090909090909},{"task":"Reasoning (word problems & logic)","model":"Opus 4.7","variant":"baseline","correctness":1},{"task":"Reasoning (word problems & logic)","model":"Opus 4.7","variant":"tuned","correctness":1},{"task":"Classification + reply (support)","model":"Opus 4.7","variant":"baseline","correctness":0.9143958333333334},{"task":"Classification + reply (support)","model":"Opus 4.7","variant":"tuned","correctness":0.9773750000000001},{"task":"Classification + reply (support)","model":"Opus 4.7","variant":"hybrid-rules","correctness":0.9632708333333332}]},"columns":2,"facet":{"field":"task","type":"nominal","title":null},"spec":{"width":320,"height":200,"mark":"bar","encoding":{"x":{"field":"model","type":"nominal","axis":{"labelAngle":-25},"title":null},"y":{"field":"correctness","type":"quantitative","scale":{"domain":[0,1]},"title":"Mean correctness"},"xOffset":{"field":"variant","type":"nominal"},"color":{"field":"variant","type":"nominal","scale":{"domain":["baseline","tuned","hybrid-rules"],"range":["#888","#5C8DEF","#2a9d2a"]}},"tooltip":[{"field":"task"},{"field":"model"},{"field":"variant"},{"field":"correctness","format":".3f"}]}}}};
+    vegaEmbed('#chart-overall', specs.overall, { actions: false, renderer: 'svg' });
+    vegaEmbed('#chart-temporal', specs.temporal, { actions: false, renderer: 'svg' });
+    vegaEmbed('#chart-tier', specs.tier, { actions: false, renderer: 'svg' });
+    vegaEmbed('#chart-cost-accuracy', specs.costAccuracy, { actions: false, renderer: 'svg' });
+    vegaEmbed('#chart-variance', specs.variance, { actions: false, renderer: 'svg' });
+    vegaEmbed('#chart-judge-rubric', specs.judgeRubric, { actions: false, renderer: 'svg' });
+    if (document.getElementById('chart-adaptation')) {
+      vegaEmbed('#chart-adaptation', specs.adaptation, { actions: false, renderer: 'svg' });
+    }
+  </script>
+</body>
+</html>

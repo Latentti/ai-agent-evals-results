@@ -1,0 +1,162 @@
+[
+  {
+    "id": "ex-01-clean-en",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": {
+      "text": "INVOICE\nAcme Widgets Ltd.\nInvoice #: INV-2026-00123\nDate: 2026-02-14\n\nLine items:\n- Widget A x10 ... $100.00\n- Widget B x5 ... $75.00\n\nSubtotal: $175.00\nVAT (8%): $14.00\nTOTAL: $189.00 USD"
+    },
+    "gold": {
+      "vendor": "Acme Widgets Ltd.",
+      "invoiceNumber": "INV-2026-00123",
+      "date": "2026-02-14",
+      "totalAmount": 189.0,
+      "currency": "USD",
+      "vatAmount": 14.0
+    }
+  },
+  {
+    "id": "ex-02-clean-fi",
+    "difficulty": "easy",
+    "locale": "fi",
+    "input": {
+      "text": "LASKU\nKoneliike Metsä Oy\nLaskunumero: 2026-0451\nPäiväys: 12.03.2026\n\nTuotteet:\n- Moottorisäha ... 450,00 €\n- Öljy 1L ... 12,00 €\n\nALV 24%: 110,88 €\nYhteensä: 572,88 €"
+    },
+    "gold": {
+      "vendor": "Koneliike Metsä Oy",
+      "invoiceNumber": "2026-0451",
+      "date": "2026-03-12",
+      "totalAmount": 572.88,
+      "currency": "EUR",
+      "vatAmount": 110.88
+    }
+  },
+  {
+    "id": "ex-03-messy-receipt",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "text": "thanks for shopping at quickmart!!!\n=========================\n2 x soda $4.50\n1 x bread $3.20\n1 x milk $2.75\n=========================\nsubtotal $10.45 vat 5% .52 grand total $10.97\n#R-887211 // 03/04/26 // cashier #7"
+    },
+    "gold": {
+      "vendor": "quickmart",
+      "invoiceNumber": "R-887211",
+      "date": "2026-03-04",
+      "totalAmount": 10.97,
+      "currency": "USD",
+      "vatAmount": 0.52
+    }
+  },
+  {
+    "id": "ex-04-missing-fields",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "text": "Payment confirmation\nVendor: Northwind Traders\nAmount: £250.00\nDate: 7 April 2026\n\nThank you for your payment."
+    },
+    "gold": {
+      "vendor": "Northwind Traders",
+      "invoiceNumber": null,
+      "date": "2026-04-07",
+      "totalAmount": 250.0,
+      "currency": "GBP",
+      "vatAmount": null
+    }
+  },
+  {
+    "id": "ex-05-multilingual-mix",
+    "difficulty": "hard",
+    "locale": "fi",
+    "input": {
+      "text": "TAVASTIA HOTELS / Tavastia Hotellit\nReceipt / Kuitti #: TH-2026-9988\nDate / Päivä: 2026-01-20\nRoom / Huone (2 nights / 2 yötä): 240,00 €\nVAT / ALV 10%: 21,82 €\nTotal / Yhteensä: 240,00 €"
+    },
+    "gold": {
+      "vendor": "Tavastia Hotels",
+      "invoiceNumber": "TH-2026-9988",
+      "date": "2026-01-20",
+      "totalAmount": 240.0,
+      "currency": "EUR",
+      "vatAmount": 21.82
+    }
+  },
+  {
+    "id": "ex-06-european-format",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "text": "Rechnung Nr. R-2026-7711\nDeutsche Werkzeuge GmbH\nDatum: 22.05.2026\nNettobetrag: 1.250,00 €\nMwSt 19%: 237,50 €\nGesamtbetrag: 1.487,50 €"
+    },
+    "gold": {
+      "vendor": "Deutsche Werkzeuge GmbH",
+      "invoiceNumber": "R-2026-7711",
+      "date": "2026-05-22",
+      "totalAmount": 1487.5,
+      "currency": "EUR",
+      "vatAmount": 237.5
+    }
+  },
+  {
+    "id": "ex-07-currency-symbol-only",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "text": "Receipt\nSeller: BlueSky Studio\nID: BS-1004\nDate: 2026-06-01\nServices: ¥1,200\nTax (10%): ¥120\nTotal: ¥1,320"
+    },
+    "gold": {
+      "vendor": "BlueSky Studio",
+      "invoiceNumber": "BS-1004",
+      "date": "2026-06-01",
+      "totalAmount": 1320.0,
+      "currency": "JPY",
+      "vatAmount": 120.0
+    }
+  },
+  {
+    "id": "ex-08-no-invoice-number",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "text": "Email confirmation\nFrom: noreply@cloudhost.io\nWe've received your monthly subscription payment.\nAmount charged: $49.00 USD on 2026-04-30.\nThank you for being a customer of CloudHost!"
+    },
+    "gold": {
+      "vendor": "CloudHost",
+      "invoiceNumber": null,
+      "date": "2026-04-30",
+      "totalAmount": 49.0,
+      "currency": "USD",
+      "vatAmount": null
+    }
+  },
+  {
+    "id": "ex-09-totally-ambiguous",
+    "difficulty": "edge",
+    "locale": "en",
+    "input": {
+      "text": "Hi! Just letting you know the package shipped today. -Mike"
+    },
+    "gold": {
+      "vendor": null,
+      "invoiceNumber": null,
+      "date": null,
+      "totalAmount": null,
+      "currency": null,
+      "vatAmount": null
+    }
+  },
+  {
+    "id": "ex-10-line-noise",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "text": "===== ORDER #ORD-77451 =====\nNorthstar Outdoor Co\n\\n\\n2026/07/03\n\nItems shipped today...\n  3 x sleeping bag    $80 ea\n  1 x tent             $260\nshipping              free\n--- tax line: 8.0 pct -> $40.00 ---\n** GRAND TOTAL ** USD 540.00 **"
+    },
+    "gold": {
+      "vendor": "Northstar Outdoor Co",
+      "invoiceNumber": "ORD-77451",
+      "date": "2026-07-03",
+      "totalAmount": 540.0,
+      "currency": "USD",
+      "vatAmount": 40.0
+    }
+  }
+]

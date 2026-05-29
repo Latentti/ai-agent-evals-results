@@ -1,0 +1,122 @@
+[
+  {
+    "id": "cl-01-billing-error",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": {
+      "message": "Hi, I was charged twice for my subscription this month. My account is ari@example.com. Please look into it."
+    },
+    "gold": {
+      "intent": "billing_error",
+      "intentKeywords": ["charged", "twice", "subscription", "billing"]
+    }
+  },
+  {
+    "id": "cl-02-refund",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": {
+      "message": "I bought a year of Pro yesterday by mistake, I meant to buy Basic. Can I get a refund?"
+    },
+    "gold": {
+      "intent": "refund",
+      "intentKeywords": ["refund", "Pro", "Basic", "mistake"]
+    }
+  },
+  {
+    "id": "cl-03-complaint",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "message": "Your app has been crashing for me three days in a row now. I'm losing work and patience. This is unacceptable."
+    },
+    "gold": {
+      "intent": "complaint",
+      "intentKeywords": ["crashing", "three days", "losing work"]
+    }
+  },
+  {
+    "id": "cl-04-outage",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": {
+      "message": "Is the service down? I cannot reach the dashboard at all from any device since about 14:00 UTC."
+    },
+    "gold": {
+      "intent": "outage",
+      "intentKeywords": ["down", "dashboard", "14:00"]
+    }
+  },
+  {
+    "id": "cl-05-feature-request",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "message": "Would love to see a dark mode toggle and an export-to-CSV option in the reports section. Any plans for that?"
+    },
+    "gold": {
+      "intent": "feature_request",
+      "intentKeywords": ["dark mode", "export", "CSV"]
+    }
+  },
+  {
+    "id": "cl-06-how-to",
+    "difficulty": "easy",
+    "locale": "en",
+    "input": {
+      "message": "How do I add a teammate to my workspace? I can't find the option anywhere."
+    },
+    "gold": {
+      "intent": "how_to",
+      "intentKeywords": ["add", "teammate", "workspace"]
+    }
+  },
+  {
+    "id": "cl-07-account-access",
+    "difficulty": "medium",
+    "locale": "en",
+    "input": {
+      "message": "I can't log in — the password reset email isn't arriving even after 4 tries. Email is ari@example.com."
+    },
+    "gold": {
+      "intent": "account_access",
+      "intentKeywords": ["log in", "password reset", "email"]
+    }
+  },
+  {
+    "id": "cl-08-finnish-billing",
+    "difficulty": "medium",
+    "locale": "fi",
+    "input": {
+      "message": "Hei, laskullani on virheellinen summa: tällä kuulla minulta on veloitettu 49 euroa, mutta sopimuksessani on 29 euroa kuukaudessa. Voitteko korjata?"
+    },
+    "gold": {
+      "intent": "billing_error",
+      "intentKeywords": ["lasku", "virheellinen", "veloitettu", "29"]
+    }
+  },
+  {
+    "id": "cl-09-ambiguous-multi-intent",
+    "difficulty": "hard",
+    "locale": "en",
+    "input": {
+      "message": "I was charged for a feature I never used and on top of that the app crashes every time I try to open it. I want a refund AND I want this fixed."
+    },
+    "gold": {
+      "intent": "refund",
+      "intentKeywords": ["refund", "charged", "crashes"]
+    }
+  },
+  {
+    "id": "cl-10-edge-other",
+    "difficulty": "edge",
+    "locale": "en",
+    "input": {
+      "message": "Hey, just wanted to say I really enjoy your product. Keep up the good work!"
+    },
+    "gold": {
+      "intent": "other",
+      "intentKeywords": ["enjoy", "product"]
+    }
+  }
+]
