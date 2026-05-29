@@ -6,17 +6,22 @@ The pipeline runs the **same agent** (same system prompt, same user prompts, sam
 
 ## 📊 Latest report
 
-The most recent run is checked into [`docs/index.html`](./docs/index.html).
+**👉 [View the latest report in your browser](https://latentti.github.io/ai-agent-evals-results/)**
 
-**View options:**
+GitHub renders `.html` files as source code from raw paths, so the report needs to be served. The recommended path is GitHub Pages — one-time setup in the repo settings, then the URL above stays live for every future push:
+
+> **Enable GitHub Pages**: repo → **Settings** → **Pages** → **Source: Deploy from a branch** → **Branch: `main`** → **Folder: `/docs`** → **Save**. After ~30 s the report is live at `https://latentti.github.io/ai-agent-evals-results/`.
+
+Alternative view options if Pages is not enabled:
 
 - **Clone and open locally:**
   ```bash
   git clone https://github.com/Latentti/ai-agent-evals-results.git
   open ai-agent-evals-results/docs/index.html
   ```
-- **GitHub Pages** (enable in repo settings → Pages → source: `main` / `/docs`)
-- **Quick preview without cloning:** [htmlpreview.github.io](https://htmlpreview.github.io/?https://github.com/Latentti/ai-agent-evals-results/blob/main/docs/index.html)
+- **Quick render via a third-party proxy** (slower, no caching):
+  [`htmlpreview.github.io`](https://htmlpreview.github.io/?https://github.com/Latentti/ai-agent-evals-results/blob/main/docs/index.html)
+  · [`raw.githack.com`](https://raw.githack.com/Latentti/ai-agent-evals-results/main/docs/index.html)
 
 The raw aggregate data is at [`docs/aggregate.json`](./docs/aggregate.json) if you want to slice it differently.
 
